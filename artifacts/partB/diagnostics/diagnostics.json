@@ -1,0 +1,30 @@
+{
+  "pre_treatment_revenue_correlation": 0.9302575462912839,
+  "indexed_pre_treatment_revenue_correlation": 0.9302575462912838,
+  "weekly_pretrend": {
+    "coefficient_per_week": 379.242884703285,
+    "ci_lower_90": 194.0251944962481,
+    "ci_upper_90": 564.4605749103218,
+    "p_value": 0.000757365739479468
+  },
+  "synthetic_pre_fit": {
+    "rmse": 1593.125363152843,
+    "mae": 1269.0744210925166,
+    "correlation": 0.9583194289796518,
+    "relative_rmse": 0.020408325349768018,
+    "actual_mean": 78062.5228111111,
+    "synthetic_mean": 78062.5228111111
+  },
+  "spend_diagnostic": {
+    "treated_pre_spend": 9342.763844444446,
+    "treated_post_spend": 10330.59522222222,
+    "control_pre_spend": 4958.929369135802,
+    "control_post_spend": 5464.4230246913585,
+    "treated_spend_change": 987.8313777777748,
+    "control_spend_change": 505.49365555555687,
+    "treated_relative_change": 0.10573224307335737,
+    "control_relative_change": 0.10193604665993657,
+    "spend_did": 482.33772222221796
+  },
+  "did_parallel_trends_valid": false
+}

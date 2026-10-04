@@ -57,6 +57,7 @@ htmlcov/
 # =========================
 # DATASETS / LARGE INPUT DATA
 # =========================
+# Keep all dataset/input files out of Git
 *.csv
 *.parquet
 *.jsonl
@@ -65,7 +66,9 @@ htmlcov/
 *.xls
 *.feather
 
-# Images / raw media
+# =========================
+# Images / Raw Media
+# =========================
 images/
 *.jpg
 *.jpeg
@@ -80,7 +83,13 @@ images/
 # =========================
 # ML GENERATED FILES
 # =========================
-artifacts/
+# Keep generated artifacts in GitHub.
+# Everything INSIDE artifacts/ is allowed,
+# even if it is CSV, JSON, Parquet, images, PKL, etc.
+!artifacts/
+!artifacts/**
+
+# Other generated ML files outside artifacts stay ignored
 embeddings/
 cache/
 
