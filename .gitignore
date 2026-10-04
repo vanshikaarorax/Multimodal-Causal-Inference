@@ -1,0 +1,95 @@
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*.so
+
+.venv/
+venv/
+env/
+ENV/
+
+*.egg-info/
+build/
+dist/
+
+# =========================
+# Environment / Secrets
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# macOS / IDE
+# =========================
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# =========================
+# Jupyter
+# =========================
+.ipynb_checkpoints/
+
+# =========================
+# Test / Cache
+# =========================
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# =========================
+# Logs / Temporary
+# =========================
+*.log
+*.tmp
+*.temp
+*.bak
+*~
+
+# =========================
+# DATASETS / LARGE INPUT DATA
+# =========================
+*.csv
+*.parquet
+*.jsonl
+*.json
+*.xlsx
+*.xls
+*.feather
+
+# Images / raw media
+images/
+*.jpg
+*.jpeg
+*.png
+*.webp
+*.gif
+*.mp4
+*.wav
+*.mp3
+*.flac
+
+# =========================
+# ML GENERATED FILES
+# =========================
+artifacts/
+embeddings/
+cache/
+
+*.npy
+*.npz
+*.pkl
+*.pickle
+*.joblib
+*.pt
+*.pth
+*.ckpt
+*.safetensors

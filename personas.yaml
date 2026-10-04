@@ -1,0 +1,25 @@
+personas:
+- name: Parent & Family
+  definition: 'Parents and caregivers buying for children and the household: kids'' products, family activities,
+    childcare, schooling for children.'
+- name: Homeowner
+  definition: 'People who own or are buying a home: renovation, home services, real estate, mortgages,
+    home insurance, furniture and appliances.'
+- name: Small Business & B2B
+  definition: 'Business owners and professionals buying for their company: software, services, events
+    and trade media aimed at businesses.'
+- name: Health & Wellness Seeker
+  definition: 'People managing their health and fitness: medical care, dental, mental health, fitness,
+    nutrition and wellness products.'
+- name: Tech Enthusiast
+  definition: 'Early adopters of consumer technology: apps, streaming, gaming, devices, phones and internet
+    services.'
+- name: Retiree & Senior
+  definition: 'Adults 55+ planning or living in retirement: Medicare, senior living, retirement income
+    and later-life services.'
+- name: Student & Learner
+  definition: 'People enrolling in education or training: colleges, degrees, online courses, certifications
+    and test prep.'
+- name: Traveler & Leisure
+  definition: 'People planning trips, outings and entertainment: travel, hotels, cruises, events, concerts,
+    sports tickets and dining out.'
