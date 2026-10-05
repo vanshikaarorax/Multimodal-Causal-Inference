@@ -1,2 +1,2 @@
-suggest_threshold,caution_threshold,min_margin,suggest,suggest_with_caution,abstain,coverage,precision,total_test_creatives
-0.6,0.45,0.1,74,14,4,0.9565217391304348,0.6818181818181818,92
+suggest_threshold,caution_threshold,min_margin,dev_coverage,dev_precision,test_suggest,test_suggest_with_caution,test_abstain,test_coverage,test_precision,total_test_creatives
+0.7,0.6,0.0,0.7906976744186046,0.7205882352941176,56,8,36,0.64,0.8125,100

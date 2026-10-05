@@ -17,10 +17,12 @@ def assign_trust_state(
 
     trusted:
         Positive effect with a non-zero 90% interval, strong pre-fit,
-        stable magnitude, and no material estimator disagreement.
+        stable magnitude, valid parallel-trends diagnostic, and
+        no material estimator disagreement.
 
     directionally_trusted:
-        Direction is robust, but magnitude has meaningful model dependence.
+        Direction is robust, but one or more diagnostics indicate
+        meaningful model/identification uncertainty.
 
     magnitude_uncertain:
         Direction is supported, but magnitude is unstable.
@@ -36,6 +38,9 @@ def assign_trust_state(
         and sensitivity_min > 0
     )
 
+    if not direction_supported:
+        return "not_trusted"
+
     fit_good = pre_rmse_relative <= 0.05
 
     sensitivity_ratio = (
@@ -45,20 +50,26 @@ def assign_trust_state(
 
     magnitude_stable = sensitivity_ratio <= 0.20
 
+    # Always evaluate estimator disagreement.
+    # A failed parallel-trends diagnostic must not disable this check.
     estimator_disagreement = (
-        did_parallel_trends_valid
-        and abs(did_estimate - point_estimate)
+        abs(did_estimate - point_estimate)
         / abs(point_estimate)
         > 0.50
     )
 
-    if not direction_supported:
-        return "not_trusted"
+    # A failed identification diagnostic is itself a reason
+    # to downgrade the trust state.
+    parallel_trends_failure = not did_parallel_trends_valid
 
     if not magnitude_stable:
         return "magnitude_uncertain"
 
-    if fit_good and not estimator_disagreement:
+    if (
+        fit_good
+        and did_parallel_trends_valid
+        and not estimator_disagreement
+    ):
         return "trusted"
 
     return "directionally_trusted"

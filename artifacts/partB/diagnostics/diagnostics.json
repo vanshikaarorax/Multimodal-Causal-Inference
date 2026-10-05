@@ -8,12 +8,12 @@
     "p_value": 0.000757365739479468
   },
   "synthetic_pre_fit": {
-    "rmse": 1593.125363152843,
-    "mae": 1269.0744210925166,
-    "correlation": 0.9583194289796518,
-    "relative_rmse": 0.020408325349768018,
-    "actual_mean": 78062.5228111111,
-    "synthetic_mean": 78062.5228111111
+    "rmse": 9558.7521850067,
+    "mae": 7614.446578848644,
+    "correlation": 0.958319429019517,
+    "relative_rmse": 0.020408325362769653,
+    "actual_mean": 468375.13686666667,
+    "synthetic_mean": 468375.13686666655
   },
   "spend_diagnostic": {
     "treated_pre_spend": 9342.763844444446,
@@ -26,5 +26,34 @@
     "control_relative_change": 0.10193604665993657,
     "spend_did": 482.33772222221796
   },
-  "did_parallel_trends_valid": false
+  "did_parallel_trends_valid": false,
+  "pretrend_window_sensitivity": [
+    {
+      "window_days": 30,
+      "coefficient_per_week": 853.7500476190417,
+      "ci_lower_90": -616.2659597781096,
+      "ci_upper_90": 2323.7660550161927,
+      "p_value": 0.33943028221395544
+    },
+    {
+      "window_days": 60,
+      "coefficient_per_week": 315.41322366523036,
+      "ci_lower_90": -37.52353088721975,
+      "ci_upper_90": 668.3499782176805,
+      "p_value": 0.1415682340403755
+    },
+    {
+      "window_days": 90,
+      "coefficient_per_week": 364.59195831150396,
+      "ci_lower_90": 153.90265220638943,
+      "ci_upper_90": 575.2812644166185,
+      "p_value": 0.004422032940105554
+    }
+  ],
+  "spend_pretrend": {
+    "coefficient_per_week": 40.964937484874795,
+    "ci_lower_90": 23.19196464365861,
+    "ci_upper_90": 58.73791032609098,
+    "p_value": 0.00014990651099940202
+  }
 }

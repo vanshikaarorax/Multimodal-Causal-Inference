@@ -1,13 +1,13 @@
 {
-  "point_estimate": 266422.9855843133,
-  "mean_daily_incremental": 8880.766186143775,
-  "mean_relative_lift": 0.10470898629471055,
-  "pre_fit_relative_rmse": 0.020408325349768018,
-  "ci_lower_90": 237778.36697986303,
-  "ci_upper_90": 294463.41475565603,
+  "point_estimate": 1598537.916640053,
+  "mean_daily_incremental": 53284.5972213351,
+  "mean_relative_lift": 0.10470898653721397,
+  "pre_fit_relative_rmse": 0.020408325362769653,
+  "ci_lower_90": 1569893.2980356028,
+  "ci_upper_90": 1626578.3458113957,
   "placebo_p_value": 0.009900990099009901,
   "did_total_effect": 2132576.733999891,
   "did_ci_lower_90": 811354.8425872376,
   "did_ci_upper_90": 3453798.6254125442,
-  "trust_state": "trusted"
+  "trust_state": "directionally_trusted"
 }

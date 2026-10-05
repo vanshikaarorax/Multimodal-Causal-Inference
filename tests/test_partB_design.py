@@ -30,7 +30,6 @@ def test_synthetic_control_result():
     assert result["point_estimate"] > 0
     assert result["mean_daily_incremental"] > 0
     assert result["mean_relative_lift"] > 0
-
     assert len(result["weights"]) == 21
     assert np.isclose(result["weights"].sum(), 1.0, atol=1e-6)
 
@@ -46,8 +45,16 @@ def test_synthetic_control_result():
 def test_placebo_reproducibility():
     panel = load_and_prepare_panel()
 
-    first = run_placebos(panel, n_placebos=N_PLACEBOS, seed=RANDOM_SEED)
-    second = run_placebos(panel, n_placebos=N_PLACEBOS, seed=RANDOM_SEED)
+    first = run_placebos(
+        panel,
+        n_placebos=N_PLACEBOS,
+        seed=RANDOM_SEED,
+    )
+    second = run_placebos(
+        panel,
+        n_placebos=N_PLACEBOS,
+        seed=RANDOM_SEED,
+    )
 
     pd.testing.assert_frame_equal(first, second)
     assert len(first) == N_PLACEBOS
@@ -57,7 +64,11 @@ def test_placebo_reproducibility():
 def test_evaluation_has_positive_interval():
     panel = load_and_prepare_panel()
     synthetic = fit_synthetic_control(panel)
-    placebos = run_placebos(panel, n_placebos=N_PLACEBOS, seed=RANDOM_SEED)
+    placebos = run_placebos(
+        panel,
+        n_placebos=N_PLACEBOS,
+        seed=RANDOM_SEED,
+    )
 
     evaluation = evaluate_estimate(
         synthetic["point_estimate"],
@@ -81,7 +92,6 @@ def test_did_and_pretrend_are_computed():
     assert np.isfinite(did["total_effect"])
     assert np.isfinite(did["total_ci_lower_90"])
     assert np.isfinite(did["total_ci_upper_90"])
-
     assert np.isfinite(pretrend["coefficient_per_week"])
     assert np.isfinite(pretrend["p_value"])
 
@@ -89,7 +99,10 @@ def test_did_and_pretrend_are_computed():
 def test_donor_sensitivity():
     panel = load_and_prepare_panel()
     synthetic = fit_synthetic_control(panel)
-    sensitivity = leave_one_donor_out(panel, baseline_result=synthetic)
+    sensitivity = leave_one_donor_out(
+        panel,
+        baseline_result=synthetic,
+    )
 
     assert len(sensitivity) == len(synthetic["weights"])
     assert sensitivity["effect"].notna().all()
@@ -98,16 +111,16 @@ def test_donor_sensitivity():
 
 def test_trust_state_rules():
     assert assign_trust_state(
-        point_estimate=266422.99,
-        interval_low=237778.37,
-        interval_high=294463.41,
-        placebo_p_value=0.0099,
-        pre_rmse_relative=0.0204,
-        sensitivity_min=256472.18,
-        sensitivity_max=275650.59,
-        did_estimate=2132576.73,
+        point_estimate=100000,
+        interval_low=90000,
+        interval_high=110000,
+        placebo_p_value=0.01,
+        pre_rmse_relative=0.02,
+        sensitivity_min=95000,
+        sensitivity_max=105000,
+        did_estimate=120000,
         did_parallel_trends_valid=False,
-    ) == "trusted"
+    ) == "directionally_trusted"
 
     assert assign_trust_state(
         point_estimate=100000,

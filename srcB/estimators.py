@@ -69,14 +69,14 @@ def fit_synthetic_control(
     treated_pre = (
         pre[pre["treated"] == 1]
         .groupby(DATE_COL)[REVENUE_COL]
-        .mean()
+        .sum()
         .sort_index()
     )
 
     treated_post = (
         post[post["treated"] == 1]
         .groupby(DATE_COL)[REVENUE_COL]
-        .mean()
+        .sum()
         .sort_index()
     )
 
@@ -216,14 +216,14 @@ def leave_one_donor_out(
     treated_pre = (
         pre[pre["treated"] == 1]
         .groupby(DATE_COL)[REVENUE_COL]
-        .mean()
+        .sum()
         .sort_index()
     )
 
     treated_post = (
         post[post["treated"] == 1]
         .groupby(DATE_COL)[REVENUE_COL]
-        .mean()
+        .sum()
         .sort_index()
     )
 
@@ -311,6 +311,42 @@ def leave_one_donor_out(
                 "removed_geo": removed_geo,
                 "effect": effect,
                 "pre_rmse": pre_rmse,
+            }
+        )
+
+    return pd.DataFrame(results)
+def pretrend_window_synthetic_sensitivity(
+    panel: pd.DataFrame,
+    windows: tuple[int, ...] = (30, 60, 90),
+) -> pd.DataFrame:
+    """Re-fit synthetic control using recent pre-treatment windows."""
+
+    pre, post = split_pre_post(panel)
+    pre_end = pre[DATE_COL].max()
+
+    results = []
+
+    for days in windows:
+        start = pre_end - pd.Timedelta(days=days - 1)
+
+        recent_pre = pre[pre[DATE_COL] >= start]
+        window_panel = pd.concat(
+            [recent_pre, post],
+            ignore_index=True,
+        )
+
+        result = fit_synthetic_control(window_panel)
+
+        results.append(
+            {
+                "window_days": days,
+                "point_estimate": result["point_estimate"],
+                "mean_daily_incremental": result[
+                    "mean_daily_incremental"
+                ],
+                "mean_relative_lift": result[
+                    "mean_relative_lift"
+                ],
             }
         )
 

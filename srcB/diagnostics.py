@@ -199,3 +199,229 @@ def weekly_pretrend_test(
             model.pvalues["treated:week_index"]
         ),
     }
+def pretrend_gap_by_week(
+    panel: pd.DataFrame,
+) -> pd.DataFrame:
+    """Measure the treated-vs-control revenue gap for each pre-treatment week."""
+
+    pre, _ = split_pre_post(panel)
+
+    pre = pre.copy()
+    pre["week"] = (
+        pre[DATE_COL]
+        .dt.to_period("W")
+        .dt.start_time
+    )
+
+    weekly = (
+        pre.groupby(["week", "treated"])[REVENUE_COL]
+        .mean()
+        .reset_index()
+    )
+
+    pivot = weekly.pivot(
+        index="week",
+        columns="treated",
+        values=REVENUE_COL,
+    ).rename(
+        columns={
+            0: "control_mean_revenue",
+            1: "treated_mean_revenue",
+        }
+    )
+
+    pivot["gap"] = (
+        pivot["treated_mean_revenue"]
+        - pivot["control_mean_revenue"]
+    )
+
+    first_gap = pivot["gap"].iloc[0]
+
+    pivot["gap_vs_first_week"] = (
+        pivot["gap"] - first_gap
+    )
+
+    return pivot.reset_index()
+
+def treated_geo_pretrend_test(
+    panel: pd.DataFrame,
+) -> pd.DataFrame:
+    """Estimate the pre-treatment revenue trend for each treated geo."""
+
+    pre, _ = split_pre_post(panel)
+
+    treated = pre[pre["treated"] == 1].copy()
+
+    treated["week"] = (
+        treated[DATE_COL]
+        .dt.to_period("W")
+        .dt.start_time
+    )
+
+    weekly_geo = (
+        treated.groupby(
+            [GEO_COL, "week"],
+            as_index=False,
+        )[REVENUE_COL]
+        .mean()
+    )
+
+    weekly_geo["week_index"] = (
+        weekly_geo["week"]
+        - weekly_geo["week"].min()
+    ).dt.days / 7
+
+    results = []
+
+    for geo, group in weekly_geo.groupby(GEO_COL):
+
+        model = smf.ols(
+            f"{REVENUE_COL} ~ week_index",
+            data=group,
+        ).fit()
+
+        ci = model.conf_int(alpha=0.10).loc["week_index"]
+
+        results.append(
+            {
+                GEO_COL: geo,
+                "coefficient_per_week": float(
+                    model.params["week_index"]
+                ),
+                "ci_lower_90": float(ci[0]),
+                "ci_upper_90": float(ci[1]),
+                "p_value": float(
+                    model.pvalues["week_index"]
+                ),
+                "r_squared": float(
+                    model.rsquared
+                ),
+            }
+        )
+
+    return (
+        pd.DataFrame(results)
+        .sort_values("coefficient_per_week")
+        .reset_index(drop=True)
+    )
+def leave_one_treated_out_pretrend(
+    panel: pd.DataFrame,
+) -> pd.DataFrame:
+    """Re-run the aggregate pre-trend test after removing each treated geo."""
+
+    treated_geos = (
+        panel.loc[
+            panel["treated"] == 1,
+            GEO_COL,
+        ]
+        .drop_duplicates()
+        .tolist()
+    )
+
+    results = []
+
+    for geo in treated_geos:
+
+        reduced = panel[panel[GEO_COL] != geo].copy()
+
+        result = weekly_pretrend_test(reduced)
+
+        results.append(
+            {
+                "excluded_geo": geo,
+                **result,
+            }
+        )
+
+    return (
+        pd.DataFrame(results)
+        .sort_values("p_value")
+        .reset_index(drop=True)
+    )
+
+def pretrend_window_sensitivity(
+    panel: pd.DataFrame,
+    windows: tuple[int, ...] = (30, 60, 90),
+) -> pd.DataFrame:
+    """Test the treated-vs-control pre-trend over recent pre-period windows."""
+
+    pre, _ = split_pre_post(panel)
+
+    end_date = pre[DATE_COL].max()
+
+    results = []
+
+    for days in windows:
+
+        start_date = end_date - pd.Timedelta(days=days - 1)
+
+        window = pre[
+            pre[DATE_COL] >= start_date
+        ].copy()
+
+        result = weekly_pretrend_test(window)
+
+        results.append(
+            {
+                "window_days": days,
+                **result,
+            }
+        )
+
+    return pd.DataFrame(results)
+
+def weekly_covariate_pretrend_test(
+    panel: pd.DataFrame,
+    value_col: str,
+) -> dict[str, float]:
+    """Test treated-vs-control pre-treatment weekly trends for a covariate."""
+
+    pre, _ = split_pre_post(panel)
+
+    pre = pre.copy()
+
+    pre["week"] = (
+        pre[DATE_COL]
+        .dt.to_period("W")
+        .dt.start_time
+    )
+
+    weekly_geo = (
+        pre.groupby(
+            [GEO_COL, "treated", "week"],
+            as_index=False,
+        )[value_col]
+        .mean()
+    )
+
+    weekly_geo["week_index"] = (
+        weekly_geo["week"]
+        - weekly_geo["week"].min()
+    ).dt.days / 7
+
+    model = smf.ols(
+        f"{value_col} ~ treated:week_index + C({GEO_COL})",
+        data=weekly_geo,
+    ).fit(
+        cov_type="cluster",
+        cov_kwds={
+            "groups": weekly_geo[GEO_COL]
+        },
+    )
+
+    coefficient = model.params[
+        "treated:week_index"
+    ]
+
+    ci = model.conf_int(alpha=0.10).loc[
+        "treated:week_index"
+    ]
+
+    return {
+        "coefficient_per_week": float(coefficient),
+        "ci_lower_90": float(ci[0]),
+        "ci_upper_90": float(ci[1]),
+        "p_value": float(
+            model.pvalues["treated:week_index"]
+        ),
+    }

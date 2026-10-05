@@ -1,638 +1,246 @@
 # Part B — Geo-Panel Causal Lift Analysis
 
-## Overview
+Estimate the incremental revenue associated with a new creative across **6 treated geographies** using Synthetic Control, placebo inference, DiD as a secondary check, robustness diagnostics, and a deterministic Trust State.
 
-Part B estimates the incremental revenue associated with a new creative introduced across a small set of treated geographies.
+> **Data:** 60 geos × 180 days = 10,800 observations  
+> **Treatment period:** 2026-06-04 to 2026-07-03  
+> **Treated / control:** 6 / 54  
+> **Execution:** CPU/offline, seeded, reproducible
 
-The analysis is designed around a geo-level panel containing **60 geographies over 180 days (10,800 geo-day observations)**. Six geographies receive the new creative beginning **2026-06-04**, while the remaining 54 geographies act as potential controls.
+## Results at a glance
 
-The implementation focuses on a reproducible, CPU-friendly causal workflow rather than a simple before/after comparison.
-
-### Core question
-
-> What incremental revenue is attributable to the new creative across the treated geographies during the post-treatment period?
-
-The pipeline produces:
-
-- A point estimate of incremental revenue
-- A 90% uncertainty interval
-- Placebo-based inference
-- Pre-treatment fit diagnostics
-- Donor sensitivity analysis
-- Difference-in-differences as a secondary estimator
-- Spend diagnostics
-- A deterministic **Trust State**
-
----
-
-## Dataset
-
-The expected input file is:
-
-```text
-geo_panel.csv
-```
-
-The panel contains:
-
-| Field | Description |
-|---|---|
-| `date` | Observation date |
-| `geo` | Geography identifier |
-| `revenue` | Daily revenue |
-| `spend` | Daily spend |
-| `treated_group` | Treatment assignment indicator |
-
-The panel validation expects:
-
-- **60 unique geographies**
-- **180 unique dates**
-- **10,800 total rows**
-- **6 treated geographies**
-- **54 control geographies**
-- No duplicate `geo` + `date` observations
-- No missing revenue/spend values
-- No negative revenue/spend values
-
-### Treatment window
-
-```text
-Pre-treatment:   2026-01-05 → 2026-06-03
-Treatment starts: 2026-06-04
-Post-treatment:  2026-06-04 → 2026-07-03
-```
-
-The six treated geographies are identified directly from `treated_group`; no geography needs to be supplied manually at runtime.
-
----
-
-# Methodology
-
-## 1. Panel construction
-
-The raw panel is loaded and validated before analysis.
-
-The pipeline creates:
-
-```text
-post         = 1 if date >= 2026-06-04
-treated      = treated_group
-treated_post = treated × post
-```
-
-This creates the treatment indicator required for the secondary DiD model while keeping the synthetic-control analysis based on the underlying geo-level time series.
-
----
-
-## 2. Pre-treatment diagnostics
-
-Before estimating lift, the pipeline checks whether treated and control groups exhibit similar historical movement.
-
-Two daily pre-treatment correlations are calculated:
-
-1. Raw revenue correlation
-2. Baseline-indexed revenue correlation
-
-The implementation also performs a weekly pre-treatment trend test using geo fixed effects and clustered inference.
-
-### Observed diagnostic
-
-The weekly pre-treatment trend test produced:
-
-```text
-Coefficient:  +379.24 revenue units / week
-90% CI:       [194.03, 564.46]
-p-value:      0.000757
-```
-
-This indicates that the treated and control groups did **not** exhibit statistically indistinguishable pre-treatment trends under this diagnostic.
-
-This matters because a conventional DiD interpretation relies heavily on parallel pre-treatment trends. Therefore, the synthetic-control estimate is treated as the primary estimate, while DiD is retained as a secondary comparison rather than the main causal estimate.
-
----
-
-# 3. Synthetic Control
-
-The primary estimator is a normalized synthetic-control construction.
-
-The six treated geographies are aggregated into a treated daily revenue series.
-
-The 54 control geographies form the donor pool.
-
-### Weight construction
-
-Because the geographies have substantially different revenue scales, each donor series is normalized by its own pre-treatment mean.
-
-The optimization finds non-negative donor weights satisfying:
-
-```text
-weight_i >= 0
-Σ weight_i = 1
-```
-
-The objective minimizes the pre-treatment mean squared error between:
-
-```text
-normalized treated revenue
-```
-
-and
-
-```text
-weighted normalized donor revenue
-```
-
-The resulting weighted donor series is then rescaled to the treated group's revenue level.
-
-This produces:
-
-```text
-Synthetic pre-treatment revenue
-Synthetic post-treatment revenue
-```
-
-The post-treatment incremental revenue is:
-
-```text
-Incremental revenue_t
-    = Treated revenue_t
-    - Synthetic revenue_t
-```
-
-and total incremental revenue is the sum across the 30-day post-treatment window.
-
----
-
-# 4. Synthetic-control pre-fit quality
-
-The fitted synthetic control closely tracks the treated group during the pre-treatment period.
-
-Observed metrics:
-
-| Metric | Value |
+| Metric | Result |
 |---|---:|
-| Pre-period RMSE | 1,593.13 / day |
-| Pre-period MAE | 1,269.07 / day |
-| Correlation | 0.9583 |
-| Relative RMSE | 2.04% |
-| Treated pre-period mean | ₹78,062.52 |
-| Synthetic pre-period mean | ₹78,062.52 |
+| **Incremental revenue** | **1,598,537.92 revenue units** |
+| 90% placebo interval | **1,569,893.30 – 1,626,578.35** |
+| Mean daily incremental revenue | **53,284.60 units** |
+| Mean lift vs. synthetic counterfactual | **10.47%** |
+| Relative effect | **2.28%** |
+| Empirical placebo p-value | **0.0099** |
+| Trust State | **`directionally_trusted`** |
+| Synthetic pre-fit relative RMSE | **2.04%** |
 
-The **2.04% relative RMSE** indicates a strong pre-treatment reconstruction of the treated trajectory.
+> The supplied panel has no currency field, so results are reported in native **revenue/spend units**, not ₹ or USD.
 
----
+## Method
 
-# 5. Incremental Revenue Estimate
+### Primary estimator — Synthetic Control
 
-The primary synthetic-control estimate is:
+The 6 treated geos are aggregated into a daily treated series. The 54 control geos form the donor pool.
 
-```text
-Point estimate: ₹266,422.99
-```
+Donors are normalized using their pre-treatment means, and non-negative weights summing to 1 are optimized to reconstruct the treated pre-period. The synthetic counterfactual is then rescaled to the treated level.
 
-Equivalent average daily incremental revenue:
+Post-treatment incremental revenue is the observed treated revenue minus the synthetic counterfactual, summed across the **6 treated geos × 30 post-treatment days**.
 
-```text
-₹8,880.77 / day
-```
+Synthetic Control is the primary estimator because treatment was non-randomized and the pre-treatment diagnostics do not support a clean parallel-trends assumption for conventional DiD.
 
-The mean relative lift against the synthetic counterfactual is:
+### Secondary estimator — Difference-in-Differences
 
-```text
-10.47%
-```
+DiD is retained as a secondary diagnostic.
 
-The evaluation layer expresses the overall effect relative to treated pre-period revenue as:
+- DiD estimate: **~2,132,576.73 revenue units**
+- Same 6 treated geos × 30 post-treatment days
+- Approximately **33% higher** than Synthetic Control
 
-```text
-2.28%
-```
+This is treated as genuine estimator disagreement, not a scale mismatch.
 
-These percentages answer different questions:
+## Key diagnostics
 
-- **10.47%** — average post-period lift relative to the synthetic counterfactual.
-- **2.28%** — total estimated incremental revenue relative to aggregate treated pre-period revenue.
+### Pre-treatment fit
 
----
+- Revenue correlation: **0.9303**
+- Synthetic pre-fit correlation: **0.9583**
+- Relative RMSE: **2.04%**
+- RMSE: **1,593 units/day**
 
-# 6. Placebo Inference
+### Parallel-trends limitation
 
-A placebo procedure is used to assess whether an effect of the observed magnitude could plausibly arise from applying the same synthetic-control procedure to untreated geographies.
+The treated and control groups show different pre-treatment trends:
 
-For each placebo iteration:
+- Weekly pretrend: **+379.24 units/week**
+- 90% CI: **+194.03 to +564.46**
+- p-value: **0.000757**
 
-1. Randomly select six control geographies.
-2. Treat them as a placebo-treated group.
-3. Use the remaining control geographies as donors.
-4. Fit the same normalized synthetic-control procedure.
-5. Calculate the placebo post-period effect.
+Additional investigation found:
 
-The analysis uses:
+- The gap is present throughout the pre-period, not only around launch.
+- **All 6 treated geos** show positive pre-treatment slopes.
+- G41 is the strongest contributor, but the violation persists after removing any one treated geo.
+- Treated spend also has a significant pre-treatment trend (**p = 0.00015**).
+- Synthetic-control estimates remain positive across alternative fitting windows.
 
-```text
-100 placebo assignments
-Random seed: 42
-```
+**Conclusion:** the positive direction is robust, but causal magnitude is less certain.
 
-### Placebo distribution
+## Primary result
 
-Observed placebo-effect summary:
+**Estimated incremental revenue: 1,598,537.92 revenue units**
 
-| Statistic | Value |
-|---|---:|
-| Mean | -562.93 |
-| Std. dev. | 18,535.82 |
-| Minimum | -37,955.08 |
-| 25th percentile | -14,118.66 |
-| Median | -520.59 |
-| 75th percentile | 13,306.21 |
-| Maximum | 53,629.56 |
+- Mean daily incremental revenue: **53,284.60**
+- Mean lift vs. synthetic counterfactual: **10.47%**
+- Relative effect: **2.28%**
+- 90% placebo interval: **1,569,893.30–1,626,578.35**
+- Empirical placebo p-value: **0.0099**
 
-None of the 100 placebo effects exceeded the observed effect in absolute magnitude.
+The corrected estimate represents the total across all 6 treated geographies. The earlier **266,422.99** estimate resulted from averaging across treated geos instead of aggregating them.
 
-Using the corrected empirical placebo p-value:
+## Robustness
 
-```text
-p = (exceeding + 1) / (N + 1)
-  = (0 + 1) / (100 + 1)
-  = 0.00990
-```
+### Synthetic-control window sensitivity
 
----
-
-# 7. Placebo-Based 90% Interval
-
-The uncertainty interval is constructed from the placebo-effect distribution.
-
-The placebo 5th and 95th percentiles are:
-
-```text
-q05 = -₹28,040.43
-q95 =  ₹28,644.62
-```
-
-The resulting 90% interval around the observed estimate is:
-
-```text
-₹237,778.37  →  ₹294,463.41
-```
-
-Therefore the primary estimate is positive and the placebo-based interval does not cross zero.
-
----
-
-# 8. Difference-in-Differences — Secondary Check
-
-A two-way fixed-effects DiD model is also fitted:
-
-```text
-revenue ~ treated_post + geo fixed effects + date fixed effects
-```
-
-Inference is clustered by geography.
-
-The estimated daily treatment effect per treated geography is:
-
-```text
-₹11,847.65
-```
-
-with a 90% interval of approximately:
-
-```text
-₹4,507.53 → ₹19,187.77
-```
-
-Aggregated across:
-
-```text
-6 treated geographies × 30 post-treatment days
-```
-
-the DiD estimate is:
-
-```text
-₹2,132,576.73
-```
-
-with a 90% interval of approximately:
-
-```text
-₹811,354.84 → ₹3,453,798.63
-```
-
-However, the pre-treatment trend diagnostic does not support the parallel-trends assumption. Consequently, DiD is treated as a **secondary estimator/check**, not the primary result.
-
----
-
-# 9. Donor Sensitivity Analysis
-
-Synthetic-control estimates can depend on the donor pool.
-
-To assess this, the analysis performs leave-one-donor-out sensitivity analysis over the active synthetic-control donors.
-
-The baseline estimate is:
-
-```text
-₹266,422.99
-```
-
-Observed leave-one-donor-out effects ranged approximately from:
-
-```text
-₹256,472.18
-```
-
-to:
-
-```text
-₹275,650.59
-```
-
-The mean across the sensitivity runs was approximately:
-
-```text
-₹265,669.26
-```
-
-The sensitivity range is approximately:
-
-```text
-₹19,178
-```
-
-or roughly **7.2% of the baseline estimate**.
-
-All leave-one-donor-out estimates remained positive.
-
-This provides evidence that the direction of the estimated effect is not being driven by a single active donor geography.
-
----
-
-# 10. Spend Diagnostic
-
-Revenue lift should be interpreted alongside changes in spend.
-
-The observed spend averages were:
-
-| Group | Pre | Post |
+| Pre-treatment window | Incremental estimate | Mean lift |
 |---|---:|---:|
-| Treated | ₹9,342.76 | ₹10,330.60 |
-| Control | ₹4,958.93 | ₹5,464.42 |
+| 30 days | 1,743,543.05 | 11.55% |
+| 60 days | 1,770,173.17 | 11.75% |
+| 90 days | 1,641,790.45 | 10.80% |
+| Primary | **1,598,537.92** | **10.47%** |
 
-Relative spend changes:
+All specifications remain positive.
 
-```text
-Treated: +10.57%
-Control: +10.19%
-```
+### Donor sensitivity
 
-Spend difference-in-differences:
+Leave-one-active-donor-out estimates remain positive:
 
-```text
-₹482.34
-```
+**~1,538,833 – 1,653,904 revenue units**
 
-The treated and control groups therefore experienced similar relative spend increases during the period.
+### Placebo inference
 
-This diagnostic does not by itself establish that spend had no effect on revenue, but it provides an important check for a concurrent differential spend shock.
+100 seeded placebo assignments were run using `seed=42`.
 
----
+- **0/100** placebo effects were at least as extreme as the observed effect.
+- Corrected empirical p-value: **0.00990**
 
-# 11. Trust State
+## 10.47% vs. 2.28%
 
-The pipeline converts the main evidence into a deterministic Trust State.
+These percentages use different denominators:
 
-The rules consider:
+- **10.47%** = mean daily lift relative to the synthetic counterfactual.
+- **2.28%** = aggregate incremental estimate relative to aggregate treated pre-period revenue.
 
-- Direction of the estimated effect
-- Whether the placebo-based interval excludes zero
-- Placebo p-value
-- Synthetic-control pre-fit quality
-- Leave-one-donor-out stability
-- Agreement with the secondary DiD estimator when its identifying assumptions are valid
+The 10.47% figure is the direct measure of average lift against the constructed counterfactual.
 
-For the observed analysis:
+## Trust State
+
+Final:
 
 ```text
-Trust State: trusted
+directionally_trusted
 ```
 
-This state should be read together with the underlying diagnostics, particularly the pre-treatment trend test. The label is a deterministic output of the implemented rules; it is not a substitute for inspecting the individual diagnostics.
+The positive estimate, positive interval, placebo result, donor sensitivity, and strong pre-fit support the direction.
 
----
+However:
 
-# Results Summary
+- Parallel trends fail.
+- DiD and Synthetic Control differ materially.
 
-| Quantity | Result |
-|---|---:|
-| Treated geographies | 6 |
-| Control geographies | 54 |
-| Post-treatment days | 30 |
-| Primary estimator | Normalized Synthetic Control |
-| Incremental revenue | **₹266,422.99** |
-| Average daily incremental revenue | **₹8,880.77** |
-| Mean counterfactual-relative lift | **10.47%** |
-| Placebo-based 90% interval | **₹237,778.37 – ₹294,463.41** |
-| Placebo p-value | **0.00990** |
-| Pre-fit relative RMSE | **2.04%** |
-| Active synthetic donors | **21** |
-| Leave-one-donor-out range | **₹256,472 – ₹275,651** |
-| DiD total effect | ₹2,132,576.73 |
-| Weekly pretrend p-value | 0.000757 |
-| Trust State | **trusted** |
+The Trust State logic was revised so failed diagnostics **can only lower trust**.
 
----
-
-# Project Structure
+## Project structure
 
 ```text
-memologs_aiml_takehome/
-│
-├── geo_panel.csv
-│
-├── srcB/
-│   ├── __init__.py
-│   ├── config.py
-│   ├── data.py
-│   ├── design.py
-│   ├── diagnostics.py
-│   ├── estimators.py
-│   ├── placebo.py
-│   ├── evaluate.py
-│   ├── trust.py
-│   ├── pipeline.py
-│   └── cli.py
-│
-├── scripts/
-│   └── run_partB.py
-│
-├── tests/
-│   ├── test_partB_design.py
-│   └── test_trust.py
-│
-├── notebooks/
-│   └── partB.ipynb
-│
-└── artifacts/
-    └── partB/
-        ├── diagnostics/
-        ├── estimates/
-        ├── placebo/
-        └── figures/
+srcB/
+├── config.py        # configuration
+├── data.py          # data + schema validation
+├── design.py        # pre/post + treated/control construction
+├── diagnostics.py   # diagnostics and fit metrics
+├── estimators.py    # Synthetic Control, DiD, sensitivity
+├── placebo.py       # placebo procedure
+├── evaluate.py      # interval + p-value
+├── trust.py         # Trust State rules
+├── pipeline.py      # end-to-end pipeline
+└── cli.py            # CLI
+
+scripts/
+└── run_partB.py
+
+tests/
 ```
 
----
-
-# Running Part B
-
-## One-command execution
-
-From the project root:
-
-```bash
-python scripts/run_partB.py
-```
-
-No runtime creative ID, geography ID, or treatment ID is required.
-
-The treatment assignment and treatment date are already defined by the panel/configuration.
-
-Expected terminal output:
-
-```text
-Part B Results
-Point estimate: ₹266,422.99
-90% interval: ₹237,778.37 to ₹294,463.41
-Relative effect: 2.28%
-Placebo p-value: 0.0099
-Trust State: trusted
-```
-
----
-
-# Optional CLI Arguments
-
-The CLI also supports optional reproducibility/configuration arguments:
-
-```bash
-python scripts/run_partB.py --panel geo_panel.csv --placebos 100 --seed 42
-```
-
-Available arguments:
-
-```text
---panel       Path to geo_panel.csv
---placebos    Number of placebo assignments
---seed        Random seed
-```
-
-The default configuration is already suitable for reproducing the reported results.
-
----
-
-# Generated Artifacts
-
-Running the pipeline writes analysis outputs under:
+Generated artifacts are stored under:
 
 ```text
 artifacts/partB/
 ```
 
-### Diagnostics
+## Run
 
-```text
-artifacts/partB/diagnostics/diagnostics.json
+```bash
+python scripts/run_partB.py
+pytest -q
 ```
 
-Contains:
-
-- Pre-treatment revenue correlations
-- Weekly pretrend test
-- Synthetic-control pre-fit metrics
-- Spend diagnostics
-- Parallel-trends diagnostic flag
-
-### Estimates
+Expected test result:
 
 ```text
-artifacts/partB/estimates/estimates.json
+26 passed
 ```
 
-Contains the main estimate, interval, placebo p-value, secondary DiD estimate, and Trust State.
+Expected CLI output:
 
 ```text
-artifacts/partB/estimates/synthetic_weights.csv
+Part B Results
+Point estimate: 1,598,537.92 revenue units
+90% interval: 1,569,893.30 to 1,626,578.35 revenue units
+Relative effect: 2.28%
+Placebo p-value: 0.0099
+Trust State: directionally_trusted
 ```
 
-Contains the active synthetic-control donor weights.
+## Evaluator fixes
 
-```text
-artifacts/partB/estimates/leave_one_donor_out.csv
-```
+### B1 — Incremental revenue scale
 
-Contains the donor sensitivity results.
+Changed treated daily aggregation from `.mean()` to `.sum()` so the headline estimate represents total incremental revenue across all 6 treated geos.
 
-### Placebo Results
+### B2 — DiD vs. Synthetic Control scale
 
-```text
-artifacts/partB/placebo/placebo_results.csv
-```
+Verified both estimators use the same 6-geo × 30-day aggregate quantity. The remaining ~33% difference is genuine estimator disagreement.
 
-Contains the 100 placebo assignments and their estimated effects.
+### B3 — Failed pre-trend investigation
 
----
+Added diagnostics for:
 
-# Reproducibility
+- Pre-period gap over time
+- Individual treated-geo trends
+- Leave-one-treated-out tests
+- Pretrend window sensitivity
+- Spend pretrend
+- Synthetic-control window sensitivity
 
-The implementation is deterministic under the configured random seed:
+### B4 — Trust State
 
-```text
-Seed = 42
-```
+Reworked the Trust State rules so failed diagnostics cannot improve the grade.
 
-The placebo assignments use the seeded random generator, while the synthetic-control optimization uses deterministic constrained optimization.
+### B5 — Currency
 
-The complete analysis can therefore be rerun locally without network access.
+Removed unsupported currency assumptions and report native revenue/spend units.
 
----
+## Reproducibility
 
-# Design Principles
+The analysis is:
 
-### Primary estimate over naive before/after
+- **CPU/offline**
+- **Seeded**
+- **Modular**
+- **Machine-readable**
+- **Tested**
 
-The analysis does not interpret the raw treated-group revenue increase as causal lift. Instead, it constructs a counterfactual from untreated geographies.
+The supplied `partB.ipynb` was used as the analytical source of truth before translating the validated logic into the modular pipeline.
 
-### Pre-treatment fit before post-treatment inference
+## Next steps
 
-The synthetic control is evaluated on historical data before interpreting the post-treatment gap.
+With additional time:
 
-### Placebos instead of relying on a single parametric interval
+1. Improve causal identification with augmented Synthetic Control or related approaches.
+2. Add an event-study/dynamic treatment-effect analysis.
+3. Add negative-control and time-shifted placebo tests.
+4. Incorporate spend as a carefully justified covariate.
+5. Compare alternative uncertainty procedures such as block resampling.
 
-The same estimator is applied to untreated geographies to characterize the empirical distribution of effects under placebo assignment.
+## Bottom line
 
-### Sensitivity to donor composition
+The analysis estimates **1.599M revenue units of incremental revenue** over the 30-day post-treatment period, with a **1.570M–1.627M** placebo-based interval and **p = 0.0099**.
 
-The active donor set is perturbed through leave-one-donor-out analysis to test whether the estimated direction depends heavily on a single geography.
+The effect remains positive across robustness checks, but the persistent pre-treatment trend difference and estimator disagreement mean the result should be interpreted as:
 
-### Secondary estimator as a diagnostic
-
-DiD provides a useful comparison, but the pre-treatment trend diagnostic is explicitly checked before relying on its identifying assumption.
-
-### Reproducibility
-
-The entire workflow is executable from the command line and produces machine-readable artifacts for inspection.
-
----
-
-# Final Output
-
-The primary analysis estimates approximately:
-
-> **₹266.4K of incremental revenue over the 30-day post-treatment period**, with a placebo-based **90% interval of approximately ₹237.8K–₹294.5K** and an empirical placebo p-value of **0.0099**.
-
-The implemented deterministic Trust State is:
-
-> **trusted**
-
-The full diagnostics and sensitivity results should be reviewed alongside this summary rather than relying on the headline estimate alone.
+> **Directionally supported, but not a fully identified causal magnitude.**

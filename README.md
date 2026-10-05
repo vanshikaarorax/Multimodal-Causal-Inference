@@ -5,7 +5,7 @@ This repository contains the complete implementation for **Part A (Persona Infer
 ## 1. Full Project Architecture
 
 ```text
-info_PartB.txt
+
 ├── Makefile
 ├── notebooks/
 │   └── partB.ipynb
@@ -41,7 +41,11 @@ info_PartB.txt
 │   ├── evaluate.py
 │   ├── evidence.py
 │   ├── knn_model.py
-│   ├── notebooks/embeddings.ipynb
+│   ├── notebooks---|
+│   |               ├── abstention_unlabelled_audit.ipynb
+│   |               ├── duplicate_threshold_analysis.ipynb
+│   |               ├── embeddings.ipynb
+│   |               └── Label_quality&personas.ipynb
 │   ├── pipeline.py
 │   ├── rationale.py
 │   ├── schema.py
@@ -65,8 +69,8 @@ info_PartB.txt
     ├── test_evidence.py
     ├── test_partB_design.py
     ├── test_schema.py
-    ├── test_split.py
-    └── test_trust.py
+   
+    
 ```
 
 `__pycache__`, generated artifacts, embeddings, images, and other large runtime files are omitted from the architecture above for readability.
@@ -97,6 +101,7 @@ Part A builds an end-to-end system that uses multimodal creative embeddings, dup
 | `srcA/schema.py` | Defines and validates the structured output schema using Pydantic. |
 | `srcA/pipeline.py` | Connects prediction, abstention, evidence, rationale, and validation. |
 | `srcA/cli.py` | Exposes the final persona suggestion pipeline through the CLI. |
+| `src/notebooks`| Consists of all experiments + fixes that were suggested
 
 ### Part A Supporting Files
 

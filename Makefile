@@ -1,6 +1,18 @@
-.PHONY: all test duplicates abstention smoke partB
+.PHONY: all test embeddings duplicates clusters persona save-persona abstention smoke partB
 
-all: test duplicates abstention smoke partB
+all: embeddings clusters persona save-persona test duplicates abstention smoke partB
+
+embeddings:
+	python -m srcA.embeddings
+
+clusters:
+	python scripts/build_duplicate_clusters.py
+
+persona:
+	python scripts/train_persona_models.py
+
+save-persona:
+	python scripts/save_persona_model.py
 
 test:
 	pytest -q
