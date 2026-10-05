@@ -18,7 +18,7 @@ from .config import (
     IMAGE_TEXT_MODEL,
 )
 from .data import load_confirmed_personas, load_creatives
-from .embeddings import load_embedding_model, encode_images, encode_texts, fuse_embeddings
+
 from .pipeline import PartAResources, run_persona_prediction
 
 app = typer.Typer(help="MemoLogs Part A persona suggestion CLI.")

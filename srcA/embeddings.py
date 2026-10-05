@@ -1,38 +1,40 @@
 from pathlib import Path
+import sys
 
 import numpy as np
 import pandas as pd
-import torch
 from PIL import Image
 from tqdm import tqdm
-from transformers import CLIPModel, CLIPProcessor
 
-import sys
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
 sys.path.insert(0, str(PROJECT_ROOT))
+
+
 from srcA.config import (
     EMBEDDING_BATCH_SIZE,
     EMBEDDING_DIMENSION,
     EMBEDDING_METADATA_PATH,
     FUSED_EMBEDDINGS_DIR,
     FUSED_EMBEDDINGS_PATH,
+    IMAGE_EMBEDDING_WEIGHT,
     IMAGE_EMBEDDINGS_DIR,
     IMAGE_EMBEDDINGS_PATH,
-    IMAGE_EMBEDDING_WEIGHT,
     IMAGE_TEXT_MODEL,
     IMAGES_DIR,
-    PROJECT_ROOT,
+    TEXT_EMBEDDING_WEIGHT,
     TEXT_EMBEDDINGS_DIR,
     TEXT_EMBEDDINGS_PATH,
-    TEXT_EMBEDDING_WEIGHT,
 )
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
 
 from srcA.data import load_creatives
+
+
 # ============================================================
 # 1. TEXT PREPROCESSING
 # ============================================================
+
 
 def normalize_text(text: str) -> str:
     """
@@ -41,6 +43,7 @@ def normalize_text(text: str) -> str:
     We intentionally do not perform OCR correction because the
     assignment already provides OCR-derived ad_text.
     """
+
     if not isinstance(text, str):
         return ""
 
@@ -49,6 +52,7 @@ def normalize_text(text: str) -> str:
 
 def prepare_texts(texts: list[str]) -> list[str]:
     """Normalize a list of ad texts."""
+
     return [normalize_text(text) for text in texts]
 
 
@@ -56,10 +60,17 @@ def prepare_texts(texts: list[str]) -> list[str]:
 # 2. DEVICE
 # ============================================================
 
-def get_device() -> torch.device:
+
+def get_device():
     """
     Use Apple MPS when available, otherwise fall back to CPU.
+
+    torch is imported lazily because cached embedding loading
+    does not require torch.
     """
+
+    import torch
+
     if torch.backends.mps.is_available():
         return torch.device("mps")
 
@@ -70,13 +81,21 @@ def get_device() -> torch.device:
 # 3. MODEL LOADING
 # ============================================================
 
+
 def load_embedding_model(model_name: str = IMAGE_TEXT_MODEL):
     """
     Load the CLIP processor and model.
 
+    Heavy dependencies are imported only when the embedding
+    model is actually required.
+
     CLIP provides a shared 512-dimensional embedding space
     for both images and text.
     """
+
+    import torch
+    from transformers import CLIPModel, CLIPProcessor
+
     device = get_device()
 
     processor = CLIPProcessor.from_pretrained(model_name)
@@ -92,20 +111,24 @@ def load_embedding_model(model_name: str = IMAGE_TEXT_MODEL):
 # 4. IMAGE LOADING
 # ============================================================
 
+
 def load_image(image_path: Path) -> Image.Image:
     """Load one image and convert it to RGB."""
+
     with Image.open(image_path) as image:
         return image.convert("RGB")
 
 
 def load_images(image_paths: list[Path]) -> list[Image.Image]:
     """Load a batch of images."""
+
     return [load_image(path) for path in image_paths]
 
 
 # ============================================================
 # 5. IMAGE ENCODING
 # ============================================================
+
 
 def encode_image_batch(
     images,
@@ -116,6 +139,9 @@ def encode_image_batch(
     """
     Encode one batch of images into CLIP embeddings.
     """
+
+    import torch
+
     inputs = processor(
         images=images,
         return_tensors="pt",
@@ -148,6 +174,7 @@ def encode_images(
     """
     Encode all creative images in batches.
     """
+
     embeddings = []
 
     for start in tqdm(
@@ -176,6 +203,7 @@ def encode_images(
 # 6. TEXT ENCODING
 # ============================================================
 
+
 def encode_text_batch(
     texts,
     processor,
@@ -185,6 +213,9 @@ def encode_text_batch(
     """
     Encode one batch of ad texts into CLIP embeddings.
     """
+
+    import torch
+
     inputs = processor(
         text=texts,
         return_tensors="pt",
@@ -219,6 +250,7 @@ def encode_texts(
     """
     Encode all ad texts in batches.
     """
+
     texts = prepare_texts(texts)
 
     embeddings = []
@@ -247,6 +279,7 @@ def encode_texts(
 # 7. EMBEDDING NORMALIZATION
 # ============================================================
 
+
 def normalize_embeddings(
     embeddings: np.ndarray,
 ) -> np.ndarray:
@@ -256,6 +289,7 @@ def normalize_embeddings(
     After normalization, cosine similarity can be computed
     efficiently using a dot product.
     """
+
     norms = np.linalg.norm(
         embeddings,
         axis=1,
@@ -271,6 +305,7 @@ def normalize_embeddings(
 # ============================================================
 # 8. IMAGE + TEXT FUSION
 # ============================================================
+
 
 def fuse_embeddings(
     image_embeddings: np.ndarray,
@@ -300,8 +335,13 @@ def fuse_embeddings(
             "Image and text weights must sum to 1."
         )
 
-    image_embeddings = normalize_embeddings(image_embeddings)
-    text_embeddings = normalize_embeddings(text_embeddings)
+    image_embeddings = normalize_embeddings(
+        image_embeddings
+    )
+
+    text_embeddings = normalize_embeddings(
+        text_embeddings
+    )
 
     fused_embeddings = (
         image_weight * image_embeddings
@@ -315,6 +355,7 @@ def fuse_embeddings(
 # 9. METADATA
 # ============================================================
 
+
 def build_embedding_metadata(
     creatives: pd.DataFrame,
 ) -> pd.DataFrame:
@@ -323,6 +364,7 @@ def build_embedding_metadata(
 
     Row i in every embedding matrix corresponds to row i here.
     """
+
     return creatives[
         [
             "creative_id",
@@ -337,8 +379,10 @@ def build_embedding_metadata(
 # 10. ARTIFACT DIRECTORIES
 # ============================================================
 
+
 def create_embedding_directories() -> None:
     """Create directories used to store embedding artifacts."""
+
     for directory in (
         IMAGE_EMBEDDINGS_DIR,
         TEXT_EMBEDDINGS_DIR,
@@ -354,6 +398,7 @@ def create_embedding_directories() -> None:
 # 11. SAVE EMBEDDINGS
 # ============================================================
 
+
 def save_embeddings(
     image_embeddings: np.ndarray,
     text_embeddings: np.ndarray,
@@ -363,6 +408,7 @@ def save_embeddings(
     """
     Save image, text and fused embeddings plus metadata.
     """
+
     create_embedding_directories()
 
     np.save(
@@ -390,10 +436,16 @@ def save_embeddings(
 # 12. LOAD SAVED EMBEDDINGS
 # ============================================================
 
+
 def load_embeddings():
     """
     Load previously generated embedding artifacts.
+
+    This function intentionally does NOT import torch or
+    transformers because cached embeddings are stored as
+    NumPy arrays and Parquet metadata.
     """
+
     image_embeddings = np.load(
         IMAGE_EMBEDDINGS_PATH
     )
@@ -422,6 +474,7 @@ def load_embeddings():
 # 13. VALIDATION
 # ============================================================
 
+
 def validate_embedding_shapes(
     image_embeddings: np.ndarray,
     text_embeddings: np.ndarray,
@@ -432,6 +485,7 @@ def validate_embedding_shapes(
     Verify that all embedding matrices have the expected
     number of rows and CLIP embedding dimension.
     """
+
     n = len(metadata)
 
     expected_shape = (
@@ -456,12 +510,14 @@ def validate_embedding_shapes(
 # 14. FULL EMBEDDING PIPELINE
 # ============================================================
 
+
 def build_embeddings(
     creatives: pd.DataFrame,
 ):
     """
     Build and persist image, text and fused embeddings.
     """
+
     processor, model, device = load_embedding_model()
 
     image_paths = [
@@ -488,6 +544,8 @@ def build_embeddings(
     fused_embeddings = fuse_embeddings(
         image_embeddings=image_embeddings,
         text_embeddings=text_embeddings,
+        image_weight=IMAGE_EMBEDDING_WEIGHT,
+        text_weight=TEXT_EMBEDDING_WEIGHT,
     )
 
     metadata = build_embedding_metadata(
@@ -514,6 +572,7 @@ def build_embeddings(
         fused_embeddings,
         metadata,
     )
+
 
 def main() -> None:
     """
