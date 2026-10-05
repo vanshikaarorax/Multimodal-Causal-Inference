@@ -18,7 +18,7 @@ class PartAResources:
     reference_embeddings: np.ndarray
     reference_creative_ids: list[str]
     creative_personas: dict[str, list[str]]
-    duplicate_threshold: float = 0.79
+    duplicate_threshold: float =0.88
 
 
 def run_persona_prediction(

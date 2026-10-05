@@ -35,5 +35,5 @@ pytest==8.4.2
 tqdm==4.67.1
 
 openai
-dotenv
+python-dotenv
 statsmodels

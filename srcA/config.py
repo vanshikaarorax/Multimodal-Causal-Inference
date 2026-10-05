@@ -22,7 +22,7 @@ ARTIFACTS_DIR = PROJECT_ROOT / "artifacts"
 # ============================================================
 
 SEED = 42
-DUPLICATE_THRESHOLD = 0.79
+DUPLICATE_THRESHOLD =0.88
 
 
 # ============================================================

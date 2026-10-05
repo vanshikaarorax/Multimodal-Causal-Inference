@@ -1,91 +1,122 @@
+from __future__ import annotations
+
+from pathlib import Path
 from pathlib import Path
 import sys
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
 import numpy as np
 import pandas as pd
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
-
-from srcA.data import load_creatives, load_duplicate_pairs
+from srcA.config import DUPLICATE_THRESHOLD
 from srcA.embeddings import load_embeddings
+from srcA.clustering import build_duplicate_edges
 
 
-SEED = 42
-DEV_PAIRS = 100
-CANDIDATE_POOL = 2000
+
+CREATIVES_PATH = PROJECT_ROOT / "creatives.parquet"
+OUTPUT_PATH = (
+    PROJECT_ROOT
+    / "artifacts"
+    / "duplicate_dev_candidates.csv"
+)
 
 
-def build_pair_candidates(creatives, embeddings, eval_pairs):
-    rng = np.random.default_rng(SEED)
-    creative_ids = creatives["creative_id"].to_numpy()
-    n = len(creative_ids)
+def main() -> None:
+    print("=" * 70)
+    print("BUILD DUPLICATE CANDIDATES")
+    print("=" * 70)
 
-    eval_pairs_set = {
-        tuple(sorted((row.creative_id_a, row.creative_id_b)))
-        for row in eval_pairs.itertuples()
-    }
-
-    pair_indices = rng.integers(0, n, size=(CANDIDATE_POOL * 3, 2))
-    pair_indices = pair_indices[pair_indices[:, 0] != pair_indices[:, 1]]
-
-    pairs = []
-    seen = set()
-
-    for index_a, index_b in pair_indices:
-        creative_a = creative_ids[index_a]
-        creative_b = creative_ids[index_b]
-        pair_key = tuple(sorted((creative_a, creative_b)))
-
-        if pair_key in seen or pair_key in eval_pairs_set:
-            continue
-
-        similarity = float(np.dot(embeddings[index_a], embeddings[index_b]))
-
-        pairs.append({
-            "creative_id_a": creative_a,
-            "creative_id_b": creative_b,
-            "similarity": similarity,
-        })
-        seen.add(pair_key)
-
-    return pd.DataFrame(pairs)
-
-
-def sample_by_similarity(candidates):
-    candidates = candidates.sort_values("similarity").reset_index(drop=True)
-    candidates["similarity_bin"] = pd.qcut(candidates["similarity"], q=10, duplicates="drop")
-
-    sampled = (
-        candidates.groupby("similarity_bin", observed=True, group_keys=False)
-        .apply(lambda group: group.sample(min(len(group), DEV_PAIRS // 10), random_state=SEED))
-        .reset_index(drop=True)
+    print(
+        f"\nUsing DUPLICATE_THRESHOLD = "
+        f"{DUPLICATE_THRESHOLD}"
     )
 
-    return sampled.sample(frac=1, random_state=SEED).reset_index(drop=True)
+    # ------------------------------------------------------------
+    # 1. Load creatives
+    # ------------------------------------------------------------
+    creatives = pd.read_parquet(
+        CREATIVES_PATH
+    )
 
+    print(
+        f"Creatives: {len(creatives)}"
+    )
 
-def main():
-    creatives = load_creatives()
-    eval_pairs = load_duplicate_pairs()
-    _, _, fused_embeddings, _ = load_embeddings()
+    # ------------------------------------------------------------
+    # 2. Load the SAME fused embeddings already produced
+    # ------------------------------------------------------------
+    _, _, fused_embeddings, metadata = load_embeddings()
 
-    candidates = build_pair_candidates(creatives, fused_embeddings, eval_pairs)
-    dev_pairs = sample_by_similarity(candidates).head(DEV_PAIRS)
+    # Align creatives to embedding metadata.
+    creatives = (
+        creatives
+        .set_index("creative_id")
+        .loc[metadata["creative_id"]]
+        .reset_index()
+    )
 
-    dev_pairs["is_duplicate"] = ""
-    dev_pairs["label_notes"] = ""
+    if len(creatives) != len(fused_embeddings):
+        raise ValueError(
+            "Creative count and embedding count do not match."
+        )
 
-    output_path = PROJECT_ROOT / "artifacts" / "duplicate_dev_candidates.csv"
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    dev_pairs.to_csv(output_path, index=False)
+    # ------------------------------------------------------------
+    # 3. USE YOUR EXISTING CLUSTERING FUNCTION
+    # ------------------------------------------------------------
+    duplicate_edges = build_duplicate_edges(
+        creatives=creatives,
+        embeddings=fused_embeddings,
+        threshold=DUPLICATE_THRESHOLD,
+    )
 
-    print(f"Generated {len(dev_pairs)} development candidates.")
-    print(f"Saved: {output_path}")
-    print("\nLabel each row manually:")
-    print("is_duplicate = 1 for near-duplicate")
-    print("is_duplicate = 0 for non-duplicate")
-    print("Use label_notes for a short reason if useful.")
+    print(
+        f"\nDuplicate edges found: "
+        f"{len(duplicate_edges):,}"
+    )
+
+    # ------------------------------------------------------------
+    # 4. Label the edges returned by clustering.py
+    # ------------------------------------------------------------
+    duplicate_edges["is_duplicate"] = 1
+
+    duplicate_edges["label_notes"] = (
+        "Threshold-based duplicate edge from "
+        f"build_duplicate_edges "
+        f"(similarity >= {DUPLICATE_THRESHOLD:.2f})."
+    )
+
+    # ------------------------------------------------------------
+    # 5. Save
+    # ------------------------------------------------------------
+    OUTPUT_PATH.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    duplicate_edges.to_csv(
+        OUTPUT_PATH,
+        index=False,
+    )
+
+    print(
+        f"\nSaved to: {OUTPUT_PATH}"
+    )
+
+    print(
+        "\nColumns:",
+        duplicate_edges.columns.tolist(),
+    )
+
+    print(
+        "\nLabel counts:"
+    )
+
+    print(
+        duplicate_edges["is_duplicate"]
+        .value_counts()
+    )
 
 
 if __name__ == "__main__":

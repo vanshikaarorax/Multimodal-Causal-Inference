@@ -35,7 +35,7 @@ def retrieve_evidence(
     reference_creative_ids: list[str],
     creative_personas: dict[str, list[str]] | None = None,
     top_k: int = 5,
-    duplicate_threshold: float = 0.79,
+    duplicate_threshold: float = 0.88,
     exclude_creative_id: str | None = None,
 ) -> list[EvidenceItem]:
     if len(reference_embeddings) != len(reference_creative_ids):
@@ -79,7 +79,7 @@ def retrieve_persona_evidence(
     persona: str,
     top_k: int = 3,
     candidate_k: int = 20,
-    duplicate_threshold: float = 0.79,
+    duplicate_threshold: float = 0.88,
     exclude_creative_id: str | None = None,
 ) -> list[EvidenceItem]:
     candidates = retrieve_evidence(

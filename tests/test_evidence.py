@@ -43,7 +43,7 @@ def test_duplicate_flag():
         embeddings,
         ids,
         top_k=2,
-        duplicate_threshold=0.79,
+        duplicate_threshold=0.88,
     )
 
     assert result[0].near_duplicate is True

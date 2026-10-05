@@ -108,3 +108,41 @@ def save_clusters(clusters: pd.DataFrame, output_path) -> None:
     """Save duplicate cluster assignments."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
     clusters.to_parquet(output_path, index=False)
+
+def build_all_pairwise_similarities(
+    creatives: pd.DataFrame,
+    embeddings: np.ndarray,
+) -> pd.DataFrame:
+    """Build all unique creative pairs with their cosine similarity."""
+    embeddings = np.asarray(embeddings, dtype=np.float32)
+
+    embeddings = embeddings / np.linalg.norm(
+        embeddings,
+        axis=1,
+        keepdims=True,
+    ).clip(min=1e-12)
+
+    similarity_matrix = embeddings @ embeddings.T
+    similarity_matrix = np.clip(
+        similarity_matrix,
+        -1.0,
+        1.0,
+    )
+
+    index_a, index_b = np.triu_indices(
+        len(embeddings),
+        k=1,
+    )
+
+    similarities = similarity_matrix[
+        index_a,
+        index_b,
+    ]
+
+    creative_ids = creatives["creative_id"].to_numpy()
+
+    return pd.DataFrame({
+        "creative_id_a": creative_ids[index_a],
+        "creative_id_b": creative_ids[index_b],
+        "similarity": similarities,
+    })
